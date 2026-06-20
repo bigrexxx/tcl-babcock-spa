@@ -1,6 +1,5 @@
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-
 import {
   listSiteImages,
   adminUploadSiteImage,
@@ -29,12 +28,6 @@ function fileToBase64(file: File): Promise<string> {
 type ImageSlot = { key: string; label: string; fallback?: string };
 
 function ImageSlotRow({ slot, current, onChanged }: { slot: ImageSlot; current?: string; onChanged: () => void }) {
-  const upload = useServerFn(adminUploadSiteImage);
-  const setUrl = useServerFn(adminSetSiteImageUrl);
-  const del = useServerFn(adminDeleteSiteImage);
-  const undo = useServerFn(adminUndoLastImageChange);
-  const listVersions = useServerFn(adminListImageVersions);
-  const restoreVersion = useServerFn(adminRestoreImageVersion);
   const [busy, setBusy] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -49,7 +42,7 @@ function ImageSlotRow({ slot, current, onChanged }: { slot: ImageSlot; current?:
     setBusy(true); setErr(null);
     try {
       const dataBase64 = await fileToBase64(file);
-      await upload({ data: { key: slot.key, filename: file.name, contentType: file.type || "image/jpeg", dataBase64 } });
+      await adminUploadSiteImage({ key: slot.key, filename: file.name, contentType: file.type || "image/jpeg", dataBase64 });
       onChanged();
     } catch (ex) {
       setErr((ex as Error).message);
@@ -63,7 +56,7 @@ function ImageSlotRow({ slot, current, onChanged }: { slot: ImageSlot; current?:
     if (!urlInput.trim()) return;
     setBusy(true); setErr(null);
     try {
-      await setUrl({ data: { key: slot.key, url: urlInput.trim() } });
+      await adminSetSiteImageUrl(slot.key, urlInput.trim());
       setUrlInput("");
       onChanged();
     } catch (ex) {
@@ -78,7 +71,7 @@ function ImageSlotRow({ slot, current, onChanged }: { slot: ImageSlot; current?:
     if (!confirm("Delete this image? You can undo or restore it from history.")) return;
     setBusy(true); setErr(null);
     try {
-      await del({ data: { key: slot.key } });
+      await adminDeleteSiteImage(slot.key);
       onChanged();
       if (showHistory) await loadVersions();
     } catch (ex) {
@@ -90,7 +83,7 @@ function ImageSlotRow({ slot, current, onChanged }: { slot: ImageSlot; current?:
 
   const loadVersions = async () => {
     try {
-      const rows = await listVersions({ data: { key: slot.key, limit: 20 } });
+      const rows = await adminListImageVersions(slot.key, 20);
       setVersions(rows);
     } catch (ex) {
       setErr((ex as Error).message);
@@ -106,8 +99,8 @@ function ImageSlotRow({ slot, current, onChanged }: { slot: ImageSlot; current?:
   const doUndo = async () => {
     setBusy(true); setErr(null);
     try {
-      const res = await undo({ data: { key: slot.key } });
-      if (!res.ok) setErr(res.reason);
+      const res = await adminUndoLastImageChange(slot.key);
+      if (!res.ok) setErr((res as any).reason);
       onChanged();
       if (showHistory) await loadVersions();
     } catch (ex) {
@@ -120,7 +113,7 @@ function ImageSlotRow({ slot, current, onChanged }: { slot: ImageSlot; current?:
   const doRestore = async (versionId: string) => {
     setBusy(true); setErr(null);
     try {
-      await restoreVersion({ data: { key: slot.key, versionId } });
+      await adminRestoreImageVersion(slot.key, versionId);
       onChanged();
       await loadVersions();
     } catch (ex) {
@@ -200,10 +193,8 @@ function ImageSlotRow({ slot, current, onChanged }: { slot: ImageSlot; current?:
 
 export function ImagesTab() {
   const qc = useQueryClient();
-  const list = useServerFn(listSiteImages);
-  const listCommittees = useServerFn(adminListCommittees);
-  const { data, isLoading } = useQuery({ queryKey: ["site-images"], queryFn: () => list(), refetchInterval: 60000 });
-  const { data: committees } = useQuery({ queryKey: ["admin-committees"], queryFn: () => listCommittees() });
+  const { data, isLoading } = useQuery({ queryKey: ["site-images"], queryFn: listSiteImages, refetchInterval: 60000 });
+  const { data: committees } = useQuery({ queryKey: ["admin-committees"], queryFn: adminListCommittees });
 
   if (isLoading) return <p style={{ color: "var(--muted)" }}>Loading images…</p>;
 

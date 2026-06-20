@@ -1,6 +1,5 @@
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-
 import { listTeamMembers, adminUpsertTeamMember, adminDeleteTeamMember } from "@/lib/team.functions";
 import { adminListCommittees } from "@/lib/admin.functions";
 import { adminUploadTeamPhoto } from "@/lib/site-images.functions";
@@ -35,7 +34,6 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 function PhotoUploader({ onUploaded }: { onUploaded: (url: string) => void }) {
-  const upload = useServerFn(adminUploadTeamPhoto);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,7 +43,7 @@ function PhotoUploader({ onUploaded }: { onUploaded: (url: string) => void }) {
     setBusy(true); setErr(null);
     try {
       const dataBase64 = await fileToBase64(file);
-      const res = await upload({ data: { filename: file.name, contentType: file.type || "image/jpeg", dataBase64 } });
+      const res = await adminUploadTeamPhoto({ filename: file.name, contentType: file.type || "image/jpeg", dataBase64 });
       onUploaded(res.url);
     } catch (ex) {
       setErr((ex as Error).message);
@@ -104,13 +102,8 @@ function TeamList({
 
 export function TeamTab() {
   const qc = useQueryClient();
-  const list = useServerFn(listTeamMembers);
-  const upsert = useServerFn(adminUpsertTeamMember);
-  const del = useServerFn(adminDeleteTeamMember);
-  const listCommittees = useServerFn(adminListCommittees);
-
-  const { data, isLoading } = useQuery({ queryKey: ["admin-team"], queryFn: () => list(), refetchInterval: 30000 });
-  const { data: committees } = useQuery({ queryKey: ["admin-committees"], queryFn: () => listCommittees() });
+  const { data, isLoading } = useQuery({ queryKey: ["admin-team"], queryFn: listTeamMembers, refetchInterval: 30000 });
+  const { data: committees } = useQuery({ queryKey: ["admin-committees"], queryFn: adminListCommittees });
 
   const [form, setForm] = useState<TeamForm>(emptyTeamForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -138,7 +131,7 @@ export function TeamTab() {
   const save = async () => {
     setSaving(true);
     try {
-      await upsert({ data: { ...form, id: editingId ?? undefined } });
+      await adminUpsertTeamMember({ ...form, id: editingId ?? undefined });
       qc.invalidateQueries({ queryKey: ["admin-team"] });
       qc.invalidateQueries({ queryKey: ["team-public"] });
       reset();
@@ -151,7 +144,7 @@ export function TeamTab() {
 
   const remove = async (id: string) => {
     if (!confirm("Remove this team member?")) return;
-    await del({ data: { id } });
+    await adminDeleteTeamMember(id);
     qc.invalidateQueries({ queryKey: ["admin-team"] });
     qc.invalidateQueries({ queryKey: ["team-public"] });
     if (editingId === id) reset();

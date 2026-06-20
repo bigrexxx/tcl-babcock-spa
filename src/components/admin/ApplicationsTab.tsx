@@ -1,6 +1,5 @@
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-
 import {
   adminListApplications,
   adminUpdateApplicationStatus,
@@ -12,15 +11,12 @@ const APP_STATUSES = ["pending", "reviewing", "accepted", "rejected"] as const;
 
 export function ApplicationsTab() {
   const qc = useQueryClient();
-  const list = useServerFn(adminListApplications);
-  const upd = useServerFn(adminUpdateApplicationStatus);
-  const del = useServerFn(adminDeleteApplication);
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({ queryKey: ["admin-apps"], queryFn: () => list(), refetchInterval: 30000 });
+  const { data, isLoading } = useQuery({ queryKey: ["admin-apps"], queryFn: adminListApplications, refetchInterval: 30000 });
 
   if (isLoading) return <p style={{ color: "var(--muted)" }}>Loading applications…</p>;
   const q = search.trim().toLowerCase();
@@ -28,7 +24,7 @@ export function ApplicationsTab() {
 
   const quickSet = async (id: string, status: typeof APP_STATUSES[number]) => {
     setBusyId(id);
-    try { await upd({ data: { id, status } }); qc.invalidateQueries({ queryKey: ["admin-apps"] }); }
+    try { await adminUpdateApplicationStatus(id, status); qc.invalidateQueries({ queryKey: ["admin-apps"] }); }
     finally { setBusyId(null); }
   };
 
@@ -84,7 +80,7 @@ export function ApplicationsTab() {
                     className="admin-select"
                     value={r.status}
                     onChange={async (e) => {
-                      await upd({ data: { id: r.id, status: e.target.value as typeof APP_STATUSES[number] } });
+                      await adminUpdateApplicationStatus(r.id, e.target.value as typeof APP_STATUSES[number]);
                       qc.invalidateQueries({ queryKey: ["admin-apps"] });
                     }}
                   >
@@ -94,7 +90,7 @@ export function ApplicationsTab() {
                     className="btn-secondary"
                     onClick={async () => {
                       if (!confirm("Delete this application?")) return;
-                      await del({ data: { id: r.id } });
+                      await adminDeleteApplication(r.id);
                       qc.invalidateQueries({ queryKey: ["admin-apps"] });
                     }}
                   >Delete</button>

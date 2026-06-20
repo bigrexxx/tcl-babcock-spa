@@ -1,6 +1,5 @@
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-
 import {
   adminListBookings,
   adminUpdateBookingStatus,
@@ -12,22 +11,19 @@ const BOOK_STATUSES = ["pending", "confirmed", "completed", "cancelled"] as cons
 
 export function BookingsTab() {
   const qc = useQueryClient();
-  const list = useServerFn(adminListBookings);
-  const upd = useServerFn(adminUpdateBookingStatus);
-  const del = useServerFn(adminDeleteBooking);
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({ queryKey: ["admin-bookings"], queryFn: () => list(), refetchInterval: 30000 });
+  const { data, isLoading } = useQuery({ queryKey: ["admin-bookings"], queryFn: adminListBookings, refetchInterval: 30000 });
   if (isLoading) return <p style={{ color: "var(--muted)" }}>Loading bookings…</p>;
   const q = search.trim().toLowerCase();
   const rows = (data ?? []).filter((r) => (filter === "all" || r.status === filter) && (!q || r.full_name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q) || r.package.toLowerCase().includes(q)));
 
   const quickSet = async (id: string, status: typeof BOOK_STATUSES[number]) => {
     setBusyId(id);
-    try { await upd({ data: { id, status } }); qc.invalidateQueries({ queryKey: ["admin-bookings"] }); }
+    try { await adminUpdateBookingStatus(id, status); qc.invalidateQueries({ queryKey: ["admin-bookings"] }); }
     finally { setBusyId(null); }
   };
 
@@ -76,7 +72,7 @@ export function BookingsTab() {
                     className="admin-select"
                     value={r.status}
                     onChange={async (e) => {
-                      await upd({ data: { id: r.id, status: e.target.value as typeof BOOK_STATUSES[number] } });
+                      await adminUpdateBookingStatus(r.id, e.target.value as typeof BOOK_STATUSES[number]);
                       qc.invalidateQueries({ queryKey: ["admin-bookings"] });
                     }}
                   >
@@ -86,7 +82,7 @@ export function BookingsTab() {
                     className="btn-secondary"
                     onClick={async () => {
                       if (!confirm("Delete this booking?")) return;
-                      await del({ data: { id: r.id } });
+                      await adminDeleteBooking(r.id);
                       qc.invalidateQueries({ queryKey: ["admin-bookings"] });
                     }}
                   >Delete</button>
